@@ -1640,7 +1640,7 @@ function pdfReclamos() {
   const sis = document.getElementById("filterSistema")?.value || "";
   const mes = document.getElementById("filterMes").value;
 
-  let arr = Object.values(datos).sort((a,b) => (b.ts||0) - (a.ts||0));
+  let arr = Object.values(datos).sort((a,b) => (b.id||"").localeCompare(a.id||""));
   if (q)   arr = arr.filter(r => (r.id+r.reclamante+r.producto+r.descripcion+r.institucion+(r.sistema||"")).toLowerCase().includes(q));
   if (est) arr = arr.filter(r => (r.estado||"Pendiente") === est);
   if (niv) arr = arr.filter(r => r.nivel === niv);
@@ -2284,7 +2284,7 @@ function renderTable() {
     const pesA = (a.anulado ? 2 : a.estado === "Cerrado" ? 1 : 0);
     const pesB = (b.anulado ? 2 : b.estado === "Cerrado" ? 1 : 0);
     if (pesA !== pesB) return pesA - pesB;
-    return (b.ts||0) - (a.ts||0);
+    return (b.id||"").localeCompare(a.id||"");
   });
 
   if (q)   arr = arr.filter(r => (r.id+r.reclamante+r.producto+r.descripcion+r.institucion+(r.sistema||"")).toLowerCase().includes(q));
@@ -2424,11 +2424,11 @@ function renderColInvestigacion(r) {
   // así distinguimos "nunca se cargó nada" (mostrar fila de arranque) de "se borró a propósito" (dejar vacío).
   const acciones = (Array.isArray(r.acciones) && r.acciones.length)
     ? r.acciones
-    : (r.accionesVaciado ? [] : [{ tipo:"", queSehizo:"", resultado:"", responsable:"", hecho:false }]);
+    : (r.accionesVaciado ? [] : [{ tipo:"", queSehizo:"", responsable:"", fechaEstimada:"", resultado:"", hecho:false }]);
 
   const hipotesis = (Array.isArray(r.hipotesis) && r.hipotesis.length)
     ? r.hipotesis
-    : (r.hipotesisVaciada ? [] : [{ teoria:"", accion:"", resultado:"" }]);
+    : (r.hipotesisVaciada ? [] : [{ teoria:"", accion:"", responsable:"", fechaEstimada:"", resultado:"" }]);
 
   const accionesHtml  = acciones.map((a,i) => accionFila(a, i)).join("");
   const hipotesisHtml = hipotesis.map((h,i) => hipotesisFila(h, i)).join("");
@@ -2455,6 +2455,8 @@ function renderColInvestigacion(r) {
         <thead><tr>
           <th>Teoría / hipótesis</th>
           <th style="width:140px;">Acción a tomar</th>
+          <th style="width:100px;">Responsable</th>
+          <th style="width:100px;">Fecha estimada</th>
           <th style="width:110px;">Resultado</th>
           <th class="no-print" style="width:24px;"></th>
         </tr></thead>
@@ -2512,8 +2514,9 @@ function renderColInvestigacion(r) {
         <thead><tr>
           <th style="width:90px;">Tipo</th>
           <th>Qué se hizo</th>
-          <th style="width:90px;">Resultado</th>
           <th style="width:80px;">Responsable</th>
+          <th style="width:100px;">Fecha estimada</th>
+          <th style="width:90px;">Resultado</th>
           <th style="width:42px;text-align:center;">Hecho</th>
           <th class="no-print" style="width:24px;"></th>
         </tr></thead>
@@ -2624,9 +2627,11 @@ function invFotoEliminar() {
 function hipotesisFila(h, i) {
   return `
     <tr>
-      <td><textarea class="acc-textarea auto-grow" data-hip="${i}" data-col="teoria"    rows="1" placeholder="Teoría o hipótesis…">${esc(h.teoria||'')}</textarea></td>
-      <td><textarea class="acc-textarea auto-grow" data-hip="${i}" data-col="accion"    rows="1" placeholder="Acción a tomar…">${esc(h.accion||'')}</textarea></td>
-      <td><textarea class="acc-textarea auto-grow" data-hip="${i}" data-col="resultado" rows="1" placeholder="Resultado…">${esc(h.resultado||'')}</textarea></td>
+      <td><textarea class="acc-textarea auto-grow" data-hip="${i}" data-col="teoria"        rows="1" placeholder="Teoría o hipótesis…">${esc(h.teoria||'')}</textarea></td>
+      <td><textarea class="acc-textarea auto-grow" data-hip="${i}" data-col="accion"        rows="1" placeholder="Acción a tomar…">${esc(h.accion||'')}</textarea></td>
+      <td><input    class="acc-input"               data-hip="${i}" data-col="responsable"  value="${esc(h.responsable||'')}"></td>
+      <td><input    class="acc-input" type="date"   data-hip="${i}" data-col="fechaEstimada" value="${h.fechaEstimada||''}"></td>
+      <td><textarea class="acc-textarea auto-grow" data-hip="${i}" data-col="resultado"     rows="1" placeholder="Resultado…">${esc(h.resultado||'')}</textarea></td>
       <td><button class="btn-del-row no-print" onclick="eliminarHipotesis(${i})">×</button></td>
     </tr>`;
 }
@@ -2635,7 +2640,7 @@ function agregarHipotesis() {
   const tbody = document.getElementById("hipotesisBody");
   const i = tbody.querySelectorAll("tr").length;
   const fila = document.createElement("tr");
-  fila.innerHTML = hipotesisFila({ teoria:"", accion:"", resultado:"" }, i);
+  fila.innerHTML = hipotesisFila({ teoria:"", accion:"", responsable:"", fechaEstimada:"", resultado:"" }, i);
   tbody.appendChild(fila);
 }
 
@@ -2660,9 +2665,10 @@ function accionFila(a, i) {
   return `
     <tr>
       <td><select class="acc-select"    data-acc="${i}" data-col="tipo"><option value="">—</option>${optsT}</select></td>
-      <td><textarea class="acc-textarea auto-grow" data-acc="${i}" data-col="queSehizo"   rows="1">${esc(a.queSehizo||'')}</textarea></td>
-      <td><textarea class="acc-textarea auto-grow" data-acc="${i}" data-col="resultado"   rows="1">${esc(a.resultado||'')}</textarea></td>
-      <td><input    class="acc-input"              data-acc="${i}" data-col="responsable" value="${esc(a.responsable||'')}"></td>
+      <td><textarea class="acc-textarea auto-grow" data-acc="${i}" data-col="queSehizo"      rows="1">${esc(a.queSehizo||'')}</textarea></td>
+      <td><input    class="acc-input"              data-acc="${i}" data-col="responsable"    value="${esc(a.responsable||'')}"></td>
+      <td><input    class="acc-input" type="date"  data-acc="${i}" data-col="fechaEstimada"  value="${a.fechaEstimada||''}"></td>
+      <td><textarea class="acc-textarea auto-grow" data-acc="${i}" data-col="resultado"      rows="1">${esc(a.resultado||'')}</textarea></td>
       <td style="text-align:center;padding:4px;">
         <input type="checkbox" data-acc="${i}" data-col="hecho" ${checked}
           style="width:16px;height:16px;cursor:pointer;accent-color:var(--ok-text);"
@@ -2860,7 +2866,7 @@ function agregarAccion() {
   const tbody = document.getElementById("accionesBody");
   const i = tbody.querySelectorAll("tr").length;
   const fila = document.createElement("tr");
-  fila.innerHTML = accionFila({ tipo:"", queSehizo:"", resultado:"", responsable:"", hecho:false }, i);
+  fila.innerHTML = accionFila({ tipo:"", queSehizo:"", responsable:"", fechaEstimada:"", resultado:"", hecho:false }, i);
   tbody.appendChild(fila);
   checkCierreLock();
 }
@@ -2894,18 +2900,21 @@ async function guardarModal() {
 
   const rows = document.getElementById("accionesBody").querySelectorAll("tr");
   r.acciones = Array.from(rows).map(tr => ({
-    tipo:        tr.querySelector('[data-col="tipo"]')?.value || "",
-    queSehizo:   tr.querySelector('[data-col="queSehizo"]')?.value || "",
-    resultado:   tr.querySelector('[data-col="resultado"]')?.value || "",
-    responsable: tr.querySelector('[data-col="responsable"]')?.value || "",
-    hecho:       tr.querySelector('[data-col="hecho"]')?.checked || false
+    tipo:          tr.querySelector('[data-col="tipo"]')?.value || "",
+    queSehizo:     tr.querySelector('[data-col="queSehizo"]')?.value || "",
+    responsable:   tr.querySelector('[data-col="responsable"]')?.value || "",
+    fechaEstimada: tr.querySelector('[data-col="fechaEstimada"]')?.value || "",
+    resultado:     tr.querySelector('[data-col="resultado"]')?.value || "",
+    hecho:         tr.querySelector('[data-col="hecho"]')?.checked || false
   }));
   r.accionesVaciado = r.acciones.length === 0; // sobrevive aunque Firebase borre el array vacío
   const hipRows = document.getElementById("hipotesisBody").querySelectorAll("tr");
   r.hipotesis = Array.from(hipRows).map(tr => ({
-    teoria:    tr.querySelector('[data-col="teoria"]')?.value || "",
-    accion:    tr.querySelector('[data-col="accion"]')?.value || "",
-    resultado: tr.querySelector('[data-col="resultado"]')?.value || ""
+    teoria:        tr.querySelector('[data-col="teoria"]')?.value || "",
+    accion:        tr.querySelector('[data-col="accion"]')?.value || "",
+    responsable:   tr.querySelector('[data-col="responsable"]')?.value || "",
+    fechaEstimada: tr.querySelector('[data-col="fechaEstimada"]')?.value || "",
+    resultado:     tr.querySelector('[data-col="resultado"]')?.value || ""
   }));
   r.hipotesisVaciada = r.hipotesis.length === 0; // idem
 
