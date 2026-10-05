@@ -163,6 +163,15 @@ tbody tr:hover td { background: #F4F8FA; cursor: pointer; }
 .badge-mejora     { background: var(--ok-bg); color: var(--ok-text); border: 1px solid var(--ok-bd); }
 .badge-anulado    { background: #ECEEF0; color: #8A949E; border: 1px solid #D0D4D9; text-decoration: line-through; }
 
+/* Icono info circular (reemplaza el glifo ⓘ que no renderiza bien en todas las fuentes) */
+.tec-info {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 13px; height: 13px; border-radius: 50%;
+  background: var(--text-3); color: #fff;
+  font-size: 9px; font-weight: 700; font-style: italic; font-family: Georgia, serif;
+  margin-left: 4px; cursor: help; vertical-align: middle; flex-shrink: 0;
+}
+
 /* Filas anuladas: atenuadas */
 tr.fila-anulada td { opacity: .6; }
 tr.fila-anulada:hover td { opacity: .85; }
@@ -241,6 +250,7 @@ tr.fila-anulada .td-fecha { text-decoration: line-through; text-decoration-color
 .acc-mini-p    { background:var(--accent-l); color:var(--accent-d); border:1px solid #B0D8E8; }
 .acc-mini-co   { background:var(--err-bg);   color:var(--err-text);  border:1px solid var(--err-bd); }
 .acc-mini-capa { background:var(--warn-bg);  color:var(--warn-text); border:1px solid var(--warn-bd); }
+.acc-mini-corr { background:var(--bg);       color:var(--text-2);    border:1px solid var(--border-d); }
 .acc-bubbles   { display:flex; gap:3px; flex-wrap:wrap; align-items:center; }
 
 .acc-est-pend  { background-color: var(--warn-bg) !important; color: var(--warn-text) !important; border-color: var(--warn-bd) !important;
@@ -649,13 +659,15 @@ tr.fila-anulada .td-fecha { text-decoration: line-through; text-decoration-color
   background: var(--bg); transition: background .15s, border-color .15s;
 }
 .foto-drop-mini:hover { border-color: var(--accent); background: var(--accent-l); color: var(--accent-d); }
-.inv-foto-wrap { display:inline-flex; align-items:flex-start; gap:6px; }
+.inv-foto-wrap { display:flex; flex-wrap:wrap; gap:8px; }
+.inv-foto-item { position: relative; }
 .inv-foto-thumb {
   width: 90px; height: 68px; object-fit: cover;
   border-radius: var(--radius); border: 1px solid var(--border);
-  cursor: pointer; transition: opacity .15s;
+  cursor: pointer; transition: opacity .15s; display: block;
 }
 .inv-foto-thumb:hover { opacity: .85; }
+.inv-foto-item .btn-del-row { position: absolute; top: -6px; right: -6px; }
 .chip-dias {
   display: inline-flex; align-items: center; justify-content: center;
   padding: 2px 7px; border-radius: 10px;
@@ -1269,6 +1281,7 @@ tr.detail-row td { border-right: none; padding: 12px 16px 16px 34px; }
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
         <button class="btn-pdf btn-pdf-inv"  onclick="pdfResultados(modalId)" title="Resumen ejecutivo para el cliente">PDF Resultados</button>
         <button class="btn-pdf btn-pdf-all"  onclick="pdfCompleto(modalId)" title="Documento completo interno">PDF Completo</button>
+        <button class="btn-pdf btn-pdf-all"  onclick="pdfRespuestaInterna(modalId)" title="Informe completo de la investigación, uso interno">PDF Respuesta Interna</button>
         <div style="width:1px;height:20px;background:var(--border);margin:0 4px;"></div>
         <button class="btn-danger-sm" style="height:30px;width:auto;padding:0 12px;font-size:11px;" onclick="confirmarBorrar(modalId)" title="Anular este reclamo">Anular</button>
         <button class="btn-light" onclick="cerrarModal()">Cerrar</button>
@@ -1655,7 +1668,7 @@ function pdfReclamos() {
 
   const filasHtml = arr.length
     ? arr.map(r => {
-        const tecnica = r.tecnica === "Si" ? "Sí" : r.tecnica === "No" ? "No" : "—";
+        const tecnica = r.tecnica === "Si" ? "Sí" : r.tecnica === "No" ? "No"+(r.tecnicaMotivo?` — ${esc(r.tecnicaMotivo)}`:"") : "—";
         const causa = r.causaRaiz ? (r.causaRaiz.length > 40 ? r.causaRaiz.slice(0,40)+"…" : r.causaRaiz) : "—";
         const desc  = r.descripcion ? (r.descripcion.length > 60 ? r.descripcion.slice(0,60)+"…" : r.descripcion) : "—";
         return `<tr>
@@ -1663,7 +1676,7 @@ function pdfReclamos() {
           <td>${fv(r.reclamante)}</td>
           <td>${fv(r.producto)}${r.sistema?`<br><span style="font-size:9px;color:#8A949E;">${fv(r.sistema)}</span>`:""}</td>
           <td>${fv(r.cirujano)}</td>
-          <td style="text-align:center;">${tecnica}</td>
+          <td style="max-width:140px;">${tecnica}</td>
           <td style="max-width:200px;">${desc}</td>
           <td style="text-align:center;">${fv(r.investigar)}</td>
           <td style="max-width:160px;">${causa}</td>
@@ -2144,11 +2157,11 @@ function renderKPIs() {
     document.getElementById("kpiTiempoSub").textContent = "";
   }
 
-  // CAPA activas (reclamos no cerrados)
+  // CAPA activas (reclamos no cerrados) — cuenta Acción correctiva, Acción preventiva y CAPA (no Corrección)
   let totalCapa = 0;
   arr.filter(r => r.estado !== "Cerrado").forEach(r => {
     if (Array.isArray(r.acciones))
-      totalCapa += r.acciones.filter(a => a.tipo === "Correctiva y preventiva").length;
+      totalCapa += r.acciones.filter(a => ["Acción correctiva","Acción preventiva","CAPA"].includes(normTipoAcc(a.tipo))).length;
   });
   document.getElementById("kpiCapa").textContent = totalCapa;
 
@@ -2312,9 +2325,10 @@ function renderTable() {
 
   tbody.innerHTML = arr.map(r => {
     const acciones = Array.isArray(r.acciones) ? r.acciones.filter(a=>a.tipo||a.queSehizo) : [];
-    const nP    = acciones.filter(a=>a.tipo==="Preventiva").length;
-    const nCo   = acciones.filter(a=>a.tipo==="Correctiva").length;
-    const nCapa = acciones.filter(a=>a.tipo==="Correctiva y preventiva").length;
+    const nCorr = acciones.filter(a=>normTipoAcc(a.tipo)==="Corrección").length;
+    const nP    = acciones.filter(a=>normTipoAcc(a.tipo)==="Acción preventiva").length;
+    const nCo   = acciones.filter(a=>normTipoAcc(a.tipo)==="Acción correctiva").length;
+    const nCapa = acciones.filter(a=>normTipoAcc(a.tipo)==="CAPA").length;
 
     const invBadge = r.investigar === "Si"
       ? `<span class="badge badge-investigacion">Sí</span>`
@@ -2325,9 +2339,10 @@ function renderTable() {
     let accCell = `<span style="color:var(--text-3);font-size:11px;">—</span>`;
     if (acciones.length > 0) {
       const bubbles = [];
-      if (nP)    bubbles.push(`<span class="acc-mini acc-mini-p">P&nbsp;${nP}</span>`);
-      if (nCo)   bubbles.push(`<span class="acc-mini acc-mini-co">Co&nbsp;${nCo}</span>`);
-      if (nCapa) bubbles.push(`<span class="acc-mini acc-mini-capa">CAPA&nbsp;${nCapa}</span>`);
+      if (nCorr) bubbles.push(`<span class="acc-mini acc-mini-corr" title="Corrección">Corr&nbsp;${nCorr}</span>`);
+      if (nCo)   bubbles.push(`<span class="acc-mini acc-mini-co" title="Acción correctiva">AC&nbsp;${nCo}</span>`);
+      if (nP)    bubbles.push(`<span class="acc-mini acc-mini-p" title="Acción preventiva">AP&nbsp;${nP}</span>`);
+      if (nCapa) bubbles.push(`<span class="acc-mini acc-mini-capa" title="CAPA">CAPA&nbsp;${nCapa}</span>`);
       accCell = `<div class="acc-bubbles">${bubbles.join("")}</div>`;
     }
 
@@ -2338,7 +2353,7 @@ function renderTable() {
     const tecCell = r.tecnica === "Si"
       ? `<span class="badge badge-cerrado" style="font-size:10px;">Sí</span>`
       : r.tecnica === "No"
-        ? `<span class="badge badge-grave" style="font-size:10px;"${r.tecnicaMotivo?` title="${esc(r.tecnicaMotivo)}"`:""}>No${r.tecnicaMotivo?" ⓘ":""}</span>`
+        ? `<span class="badge badge-grave" style="font-size:10px;">No</span>${r.tecnicaMotivo?`<span class="tec-info" title="${esc(r.tecnicaMotivo)}">i</span>`:""}`
         : `<span style="color:var(--text-3);font-size:11px;">—</span>`;
 
     const descCell = r.descripcion
@@ -2414,7 +2429,7 @@ function abrirModal(id) {
   document.getElementById("modalBg").classList.add("open");
   renderColInvestigacion(r);
   renderColFormulario(r);
-  _invFotoDataUrl = r.fotoInvestigacion || null; // cargar foto existente
+  _invFotosDataUrls = fotosInvArray(r).slice(); // cargar fotos existentes (copia editable)
   setTimeout(() => { initAutoGrow(); checkCierreLock(); }, 50);
 }
 
@@ -2512,7 +2527,7 @@ function renderColInvestigacion(r) {
       <div class="acc-table-scroll">
       <table class="acc-table" id="accionesTable">
         <thead><tr>
-          <th style="width:90px;">Tipo</th>
+          <th style="width:125px;">Tipo</th>
           <th>Qué se hizo</th>
           <th style="width:80px;">Responsable</th>
           <th style="width:100px;">Fecha estimada</th>
@@ -2566,62 +2581,69 @@ function renderColInvestigacion(r) {
   <label class="modal-field-label" style="font-size:9px;">Notas internas</label>
   <textarea class="modal-textarea" id="eNotas">${esc(r.notas||'')}</textarea>
 
-  <!-- Foto de evidencia de la investigación -->
-  <label class="modal-field-label" style="font-size:9px;margin-top:10px;display:block;">Foto de evidencia</label>
+  <!-- Fotos de evidencia de la investigación -->
+  <label class="modal-field-label" style="font-size:9px;margin-top:10px;display:block;">Fotos de evidencia</label>
   <div class="foto-drop-mini" id="invFotoDrop" onclick="document.getElementById('invFotoInput').click()">
-    <input type="file" id="invFotoInput" accept="image/*" style="display:none;" onchange="invFotoAgregar(this)">
-    <span>⊕ Adjuntar foto</span>
+    <input type="file" id="invFotoInput" accept="image/*" multiple style="display:none;" onchange="invFotoAgregar(this)">
+    <span>⊕ Adjuntar foto(s)</span>
   </div>
-  <div id="invFotoPreview" style="margin-top:6px;">
-    ${r.fotoInvestigacion
-      ? `<div class="inv-foto-wrap">
-           <img src="${r.fotoInvestigacion}" class="inv-foto-thumb" onclick="abrirLightbox('${r.fotoInvestigacion}')">
-           <button class="btn-del-row no-print" onclick="invFotoEliminar()" title="Quitar foto">×</button>
-         </div>`
-      : ""}
+  <div id="invFotoPreview" class="inv-foto-wrap" style="margin-top:6px;">
+    ${fotosInvArray(r).map((f,i)=>`
+      <div class="inv-foto-item">
+        <img src="${f}" class="inv-foto-thumb" onclick="abrirLightbox('${f}')">
+        <button class="btn-del-row no-print" onclick="invFotoEliminar(${i})" title="Quitar foto">×</button>
+      </div>`).join("")}
   </div>
 </div>
     </div>
   `;
 }
 
-/* ── FOTO EN MODAL INVESTIGACIÓN (punto 7) ─────────────────── */
-let _invFotoDataUrl = null; // base64 de la foto de investigación activa en el modal
+/* ── FOTOS EN MODAL INVESTIGACIÓN (punto 7) ─────────────────── */
+let _invFotosDataUrls = []; // base64[] de las fotos de investigación activas en el modal
 
-function invFotoAgregar(input) {
-  const file = input.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    // Comprimir igual que el formulario
-    const img = new Image();
-    img.onload = () => {
-      const MAX = 900;
-      let w = img.width, h = img.height;
-      if (w > MAX || h > MAX) {
-        if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
-        else       { w = Math.round(w * MAX / h); h = MAX; }
-      }
-      const canvas = document.createElement("canvas");
-      canvas.width = w; canvas.height = h;
-      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-      const dataUrl = canvas.toDataURL("image/jpeg", 0.72);
-      _invFotoDataUrl = dataUrl;
-      document.getElementById("invFotoPreview").innerHTML = `
-        <div class="inv-foto-wrap">
-          <img src="${dataUrl}" class="inv-foto-thumb" onclick="abrirLightbox('${dataUrl}')">
-          <button class="btn-del-row no-print" onclick="invFotoEliminar()" title="Quitar foto">×</button>
-        </div>`;
-      input.value = "";
-    };
-    img.src = e.target.result;
-  };
-  reader.readAsDataURL(file);
+function invFotoRenderPreview() {
+  document.getElementById("invFotoPreview").innerHTML = _invFotosDataUrls.map((f,i)=>`
+    <div class="inv-foto-item">
+      <img src="${f}" class="inv-foto-thumb" onclick="abrirLightbox('${f}')">
+      <button class="btn-del-row no-print" onclick="invFotoEliminar(${i})" title="Quitar foto">×</button>
+    </div>`).join("");
 }
 
-function invFotoEliminar() {
-  _invFotoDataUrl = null;
-  document.getElementById("invFotoPreview").innerHTML = "";
+function invFotoAgregar(input) {
+  const files = Array.from(input.files || []);
+  if (!files.length) return;
+  let pendientes = files.length;
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      // Comprimir igual que el formulario
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 900;
+        let w = img.width, h = img.height;
+        if (w > MAX || h > MAX) {
+          if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+          else       { w = Math.round(w * MAX / h); h = MAX; }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.72);
+        _invFotosDataUrls.push(dataUrl);
+        invFotoRenderPreview();
+        pendientes--;
+        if (pendientes === 0) input.value = "";
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function invFotoEliminar(idx) {
+  _invFotosDataUrls.splice(idx, 1);
+  invFotoRenderPreview();
 }
 
 function hipotesisFila(h, i) {
@@ -2655,10 +2677,19 @@ function eliminarHipotesis(idx) {
   });
 }
 
+// Tipos de acción. Los valores viejos guardados se mapean a los nuevos al leer.
+const TIPOS_ACCION = ["Corrección","Acción correctiva","Acción preventiva","CAPA"];
+function normTipoAcc(t) {
+  if (t === "Correctiva") return "Acción correctiva";
+  if (t === "Preventiva") return "Acción preventiva";
+  if (t === "Correctiva y preventiva") return "CAPA";
+  return t || "";
+}
+
 function accionFila(a, i) {
-  const tipos = ["Correctiva","Preventiva","Correctiva y preventiva"];
-  const optsT = tipos.map(t =>
-    `<option value="${t}" ${a.tipo===t?"selected":""}>${t}</option>`
+  const tipoAct = normTipoAcc(a.tipo);
+  const optsT = TIPOS_ACCION.map(t =>
+    `<option value="${t}" ${tipoAct===t?"selected":""}>${t}</option>`
   ).join("");
   const checked = a.hecho ? "checked" : "";
 
@@ -2843,6 +2874,12 @@ function checkCierreLock() {
 }
 
 function esc(s){ return String(s).replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+// Fotos de evidencia de la investigación: array nuevo (fotosInvestigacion) con fallback
+// al campo viejo (fotoInvestigacion, singular) para no perder registros ya guardados.
+function fotosInvArray(r){
+  if (Array.isArray(r.fotosInvestigacion)) return r.fotosInvestigacion;
+  return r.fotoInvestigacion ? [r.fotoInvestigacion] : [];
+}
 
 function cerrarModal(force) {
   if (!force && modalDirty) {
@@ -2944,7 +2981,7 @@ r.fechaInformeExterno    = document.getElementById("eFechaInformeExt")?.value ||
 r.comoInformoExterno     = document.getElementById("eComoInformoExt")?.value.trim() || "";
 
 r.notas                  = document.getElementById("eNotas").value.trim();
-  if (_invFotoDataUrl !== undefined) r.fotoInvestigacion = _invFotoDataUrl;
+  if (_invFotosDataUrls !== undefined) { r.fotosInvestigacion = _invFotosDataUrls; delete r.fotoInvestigacion; }
   r.infoAdicional       = document.getElementById("eInfoAdicional")?.value.trim() || "";
   r.ts                  = Date.now();
 
@@ -3064,7 +3101,7 @@ function buildPrintFrame(html) {
 function pdfResultados(id) {
   const r = datos[id]; if (!r) return;
   const acciones = Array.isArray(r.acciones) ? r.acciones.filter(a=>a.tipo||a.queSehizo) : [];
-  const accFilas = acciones.map(a=>`<tr><td>${fv(a.tipo)}</td><td>${fv(a.queSehizo)}</td></tr>`).join("")
+  const accFilas = acciones.map(a=>`<tr><td>${fv(normTipoAcc(a.tipo))}</td><td>${fv(a.queSehizo)}</td></tr>`).join("")
     || `<tr><td colspan="2" style="color:#8A949E;text-align:center;">Sin acciones</td></tr>`;
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">${estilosBase()}
   <style>
@@ -3130,7 +3167,7 @@ function pdfResultados(id) {
 function pdfCompleto(id) {
   const r = datos[id]; if (!r) return;
   const acciones = Array.isArray(r.acciones) ? r.acciones.filter(a=>a.tipo||a.queSehizo) : [];
-  const accFilas = acciones.map(a=>`<tr><td>${fv(a.tipo)}</td><td>${fv(a.queSehizo)}</td><td>${fv(a.resultado)}</td><td>${fv(a.responsable)}</td><td style="text-align:center;">${a.hecho?'✓':''}</td></tr>`).join("")
+  const accFilas = acciones.map(a=>`<tr><td>${fv(normTipoAcc(a.tipo))}</td><td>${fv(a.queSehizo)}</td><td>${fv(a.resultado)}</td><td>${fv(a.responsable)}</td><td style="text-align:center;">${a.hecho?'✓':''}</td></tr>`).join("")
     || `<tr><td colspan="5" style="color:#8A949E;text-align:center;">Sin acciones</td></tr>`;
   const porques = Array.isArray(r.porques) ? r.porques : [];
   const pqFilas = [0,1,2,3,4].map(i=>`<tr><td style="text-align:center;font-family:'IBM Plex Mono','Courier New',monospace;font-weight:600;color:#0E6B8A;">${i+1}</td><td>${fv(porques[i])}</td></tr>`).join("");
@@ -3273,7 +3310,7 @@ function htmlFormulario(r) {
 function htmlInvestigacion(r) {
   const acciones = Array.isArray(r.acciones) && r.acciones.length ? r.acciones : [];
   const accFilas = acciones.map(a =>
-    `<tr><td>${fv(a.tipo)}</td><td>${fv(a.queSehizo)}</td><td>${fv(a.resultado)}</td><td>${fv(a.responsable)}</td></tr>`
+    `<tr><td>${fv(normTipoAcc(a.tipo))}</td><td>${fv(a.queSehizo)}</td><td>${fv(a.resultado)}</td><td>${fv(a.responsable)}</td></tr>`
   ).join("") || `<tr><td colspan="4" style="color:#8A949E;text-align:center;">Sin acciones registradas</td></tr>`;
 
   const porques = Array.isArray(r.porques) ? r.porques : [];
@@ -3334,12 +3371,9 @@ function pdfInvestigacion(id) {
   buildPrintFrame(htmlInvestigacion(r));
 }
 
-function pdfResultados(id) {
-  const r = datos[id]; if (!r) return;
-  const acciones = Array.isArray(r.acciones) ? r.acciones.filter(a=>a.tipo||a.queSehizo) : [];
-  const accFilas = acciones.map(a=>`<tr><td>${fv(a.tipo)}</td><td>${fv(a.queSehizo)}</td></tr>`).join("")
-    || `<tr><td colspan="2" style="color:#8A949E;text-align:center;">Sin acciones registradas</td></tr>`;
-  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">${estilosBase()}
+/* ── Estilo "resumen" compartido por PDF Resultados / PDF Completo / PDF Respuesta Interna ── */
+function estilosResumen() {
+  return `
   <style>
     .cbar{background:#0E6B8A;height:6px;}
     .chead{background:#094E66;color:#fff;padding:18px 22px 16px;margin-bottom:18px;}
@@ -3357,12 +3391,22 @@ function pdfResultados(id) {
     .cbox-t{font-size:9px;font-weight:700;text-transform:uppercase;color:#1E6B2E;margin-bottom:4px;}
     .cbox-v{font-size:14px;font-weight:600;color:#1E6B2E;line-height:1.4;}
     .irow{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
+    .irow3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
     .iitem label{display:block;font-size:9px;text-transform:uppercase;letter-spacing:.07em;color:#8A949E;margin-bottom:3px;}
     .iitem value{display:block;font-size:13px;color:#1C2226;font-weight:500;}
     .firma{margin-top:24px;display:grid;grid-template-columns:1fr 1fr;gap:40px;}
     .firma-b{border-top:1.5px solid #D0D4D9;padding-top:6px;font-size:9px;color:#8A949E;text-transform:uppercase;letter-spacing:.07em;}
     .desc-text{font-size:12px;line-height:1.6;white-space:pre-wrap;color:#1C2226;}
-  </style></head><body>
+    .rbox table{margin-top:0;}
+  </style>`;
+}
+
+function pdfResultados(id) {
+  const r = datos[id]; if (!r) return;
+  const acciones = Array.isArray(r.acciones) ? r.acciones.filter(a=>a.tipo||a.queSehizo) : [];
+  const accFilas = acciones.map(a=>`<tr><td>${fv(normTipoAcc(a.tipo))}</td><td>${fv(a.queSehizo)}</td><td class="mono">${fmtFecha(a.fechaEstimada)||"—"}</td><td>${fv(a.resultado)}</td></tr>`).join("")
+    || `<tr><td colspan="4" style="color:#8A949E;text-align:center;">Sin acciones registradas</td></tr>`;
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">${estilosBase()}${estilosResumen()}</head><body>
     <div class="cbar"></div>
     <div class="chead">
       <div class="cid">${fv(r.id)}</div>
@@ -3389,9 +3433,14 @@ function pdfResultados(id) {
 
     ${r.fotos&&r.fotos.length ? `<div class="rbox"><div class="rbox-t">Foto(s) del reclamo</div><div style="display:flex;gap:8px;flex-wrap:wrap;">${r.fotos.map(f=>`<img src="${f}" style="max-width:160px;max-height:130px;object-fit:contain;border:1px solid #D0D4D9;border-radius:3px;">`).join("")}</div></div>` : ""}
 
+    ${r.investigar ? `<div class="rbox"><div class="rbox-t">¿Se investigó?</div>
+      <div class="desc-text" style="margin-bottom:${r.investigar==='No'&&r.motivoNoInvestiga?'6px':'0'};">${r.investigar==="Si"?"Sí, se realizó una investigación sobre este reclamo.":"No se realizó investigación."}</div>
+      ${r.investigar==="No"&&r.motivoNoInvestiga ? `<div class="desc-text"><strong>Motivo:</strong> ${fv(r.motivoNoInvestiga)}</div>` : ""}
+    </div>` : ""}
+
     ${r.causaRaiz ? `<div class="cbox"><div class="cbox-t">✓ Causa Raíz Identificada</div><div class="cbox-v">${fv(r.causaRaiz)}</div></div>` : ""}
 
-    ${acciones.length ? `<div class="rbox"><div class="rbox-t">Acciones realizadas</div><table><thead><tr><th>Tipo de acción</th><th>Qué se realizó</th></tr></thead><tbody>${accFilas}</tbody></table></div>` : ""}
+    ${acciones.length ? `<div class="rbox"><div class="rbox-t">Acciones realizadas</div><table><thead><tr><th>Tipo de acción</th><th>Qué se realizó</th><th>Fecha</th><th>Resultado</th></tr></thead><tbody>${accFilas}</tbody></table></div>` : ""}
 
     <div class="rbox">
       <div class="rbox-t">Informe al reclamante</div>
@@ -3403,7 +3452,7 @@ function pdfResultados(id) {
       </div>
     </div>
 
-    ${r.fotoInvestigacion ? `<div class="rbox"><div class="rbox-t">Foto de evidencia</div><img src="${r.fotoInvestigacion}" style="max-width:100%;max-height:200px;object-fit:contain;border:1px solid #D0D4D9;border-radius:3px;"></div>` : ""}
+    ${fotosInvArray(r).length ? `<div class="rbox"><div class="rbox-t">Foto(s) de evidencia</div><div style="display:flex;gap:8px;flex-wrap:wrap;">${fotosInvArray(r).map(f=>`<img src="${f}" style="max-width:160px;max-height:130px;object-fit:contain;border:1px solid #D0D4D9;border-radius:3px;">`).join("")}</div></div>` : ""}
 
     <div class="firma">
       <div class="firma-b">Responsable de Calidad</div>
@@ -3416,42 +3465,187 @@ function pdfResultados(id) {
 function pdfCompleto(id) {
   const r = datos[id]; if (!r) return;
   const acciones = Array.isArray(r.acciones) ? r.acciones.filter(a=>a.tipo||a.queSehizo) : [];
-  const accFilas = acciones.map(a=>`<tr><td>${fv(a.tipo)}</td><td>${fv(a.queSehizo)}</td><td>${fv(a.resultado)}</td><td>${fv(a.responsable)}</td><td style="text-align:center;">${a.hecho?'✓':''}</td></tr>`).join("")
+  const accFilas = acciones.map(a=>`<tr><td>${fv(normTipoAcc(a.tipo))}</td><td>${fv(a.queSehizo)}</td><td>${fv(a.resultado)}</td><td>${fv(a.responsable)}</td><td style="text-align:center;">${a.hecho?'✓':''}</td></tr>`).join("")
     || `<tr><td colspan="5" style="color:#8A949E;text-align:center;">Sin acciones</td></tr>`;
   const porques = Array.isArray(r.porques) ? r.porques : [];
   const pqFilas = [0,1,2,3,4].map(i=>`<tr><td style="text-align:center;font-family:'IBM Plex Mono','Courier New',monospace;font-weight:600;color:#0E6B8A;">${i+1}</td><td>${fv(porques[i])}</td></tr>`).join("");
   const hip = Array.isArray(r.hipotesis)&&r.hipotesis.length ? r.hipotesis : [];
   const hipFilas = hip.map(h=>`<tr><td>${fv(h.teoria)}</td><td>${fv(h.accion)}</td><td>${fv(h.resultado)}</td></tr>`).join("");
-  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">${estilosBase()}<style>.cbar{background:#094E66;height:5px;}</style></head><body>
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">${estilosBase()}${estilosResumen()}</head><body>
     <div class="cbar"></div>
-    ${headerHtml("Investigación y Cierre — "+r.id,"Sistema de Gestión de Calidad — Biotrom")}
-    <div class="sec">1. Datos del Reclamo</div>
-    <div class="grid g3"><div><span class="field-label">ID</span><div class="field-val mono">${fv(r.id)}</div></div><div><span class="field-label">Fecha reclamo</span><div class="field-val mono">${fmtFecha(r.fechaReclamo)}</div></div><div><span class="field-label">Estado</span><div class="field-val">${badgeEstadoPrint(r.estado)}</div></div></div>
-    <div class="grid g3"><div><span class="field-label">Reclamante</span><div class="field-val">${fv(r.reclamante)}</div></div><div><span class="field-label">Área</span><div class="field-val">${fv(r.area)}</div></div><div><span class="field-label">Email/Tel</span><div class="field-val">${fv(r.email||r.telefono)}</div></div></div>
-    <div class="grid g3"><div><span class="field-label">Producto</span><div class="field-val">${fv(r.producto)}</div></div><div><span class="field-label">Sistema</span><div class="field-val">${fv(r.sistema)}</div></div><div><span class="field-label">Código / Lote</span><div class="field-val mono">${fv(r.codProducto)} · ${fv(r.lote)}</div></div></div>
-    <div class="sec">2. Paciente y Cirugía</div>
-    <div class="grid g3"><div><span class="field-label">Paciente</span><div class="field-val">${fv(r.paciente)}</div></div><div><span class="field-label">Nivel</span><div class="field-val">${badgeNivelPrint(r.nivel)}</div></div><div><span class="field-label">Tipo de riesgo</span><div class="field-val">${badgeRiesgoPrint(r.riesgoSeg)}</div></div></div>
-    <div class="grid g3"><div><span class="field-label">Cirujano</span><div class="field-val">${fv(r.cirujano)}</div></div><div><span class="field-label">Institución</span><div class="field-val">${fv(r.institucion)}</div></div><div><span class="field-label">Fecha operación</span><div class="field-val mono">${fmtFecha(r.fechaOp)}</div></div></div>
-    <div class="grid g2"><div><span class="field-label">Técnica respetada</span><div class="field-val">${fv(r.tecnica)}${r.tecnicaMotivo?" — "+r.tecnicaMotivo:""}</div></div></div>
-    <div class="sec">3. Descripción del Reclamo</div>
-    <div class="grid g1"><div><span class="field-label">Descripción</span><div class="field-val area">${fv(r.descripcion)}</div></div></div>
-    ${r.fotos&&r.fotos.length?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">${r.fotos.map(f=>`<img src="${f}" style="max-width:120px;max-height:95px;object-fit:contain;border:1px solid #D0D4D9;border-radius:3px;">`).join("")}</div>`:""}
-    <div class="sec">4. Investigación</div>
-    <div class="grid g2"><div><span class="field-label">¿Se investiga?</span><div class="field-val">${fv(r.investigar)}</div></div><div><span class="field-label">Motivo (si no)</span><div class="field-val">${fv(r.motivoNoInvestiga)}</div></div></div>
-    ${hip.length?`<span class="field-label">Hipótesis</span><table style="margin-top:4px;"><thead><tr><th>Teoría</th><th>Acción</th><th>Resultado</th></tr></thead><tbody>${hipFilas}</tbody></table>`:""}
-    ${r.investigar==="Si"?`<table style="margin:8px 0;"><thead><tr><th style="width:28px;">#</th><th>Análisis 5 Por Qués</th></tr></thead><tbody>${pqFilas}</tbody></table>${r.causaRaiz?`<div style="background:#EAF5EC;border:1px solid #A8D5AE;border-radius:3px;padding:8px 10px;margin-bottom:8px;"><span style="font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#1E6B2E;display:block;margin-bottom:3px;">Causa Raíz</span><div style="font-size:12px;font-weight:600;color:#1E6B2E;">${fv(r.causaRaiz)}</div></div>`:""}`:""}
-    <div class="sec">5. Acciones y Seguimiento</div>
-    <table><thead><tr><th>Tipo</th><th>Qué se hizo</th><th>Resultado</th><th>Responsable</th><th style="width:50px;text-align:center;">Hecho</th></tr></thead><tbody>${accFilas}</tbody></table>
-    <div class="sec">6. Cierre</div>
-    <div class="grid g2"><div><span class="field-label">Quien resuelve</span><div class="field-val">${fv(r.cierreResponsable)}</div></div><div><span class="field-label">Fecha de cierre</span><div class="field-val mono">${fmtFecha(r.cierreFecha)}</div></div></div>
-    <div class="grid g2"><div><span class="field-label">Fecha informe al reclamante</span><div class="field-val mono">${fmtFecha(r.fechaInformeReclamante)}</div></div><div><span class="field-label">Cómo se informó</span><div class="field-val">${fv(r.comoInformo)}</div></div></div>
-    <div class="grid g1"><div><span class="field-label">Notas internas</span><div class="field-val area">${fv(r.notas)}</div></div></div>
-    ${r.fotoInvestigacion?`<span class="field-label">Foto de evidencia</span><br><img src="${r.fotoInvestigacion}" style="max-width:100%;max-height:200px;object-fit:contain;border:1px solid #D0D4D9;border-radius:3px;margin-top:4px;">`:""}
+    <div class="chead">
+      <div class="cid">${fv(r.id)}</div>
+      <div class="csub">Documento Completo — Investigación y Cierre · Sistema de Gestión de Calidad — Biotrom · REG-007</div>
+      <div class="cmeta">
+        <div class="cmeta-item"><label>Reclamante</label><value>${fv(r.reclamante)}</value></div>
+        <div class="cmeta-item"><label>Producto / Instrumental</label><value>${fv(r.producto)}</value></div>
+        <div class="cmeta-item"><label>Sistema</label><value>${fv(r.sistema)}</value></div>
+        <div class="cmeta-item"><label>Fecha reclamo</label><value>${fmtFecha(r.fechaReclamo)}</value></div>
+        <div class="cmeta-item"><label>Paciente</label><value>${fv(r.paciente)}</value></div>
+        <div class="cmeta-item"><label>Cirujano</label><value>${fv(r.cirujano)}</value></div>
+        <div class="cmeta-item"><label>Fecha operación</label><value>${fmtFecha(r.fechaOp)}</value></div>
+      </div>
+      <div class="cmeta-badges">
+        ${r.estado ? `<span class="cbadge">${r.estado}</span>` : ""}
+        ${r.nivel ? `<span class="cbadge">${r.nivel}</span>` : ""}
+        ${r.riesgoSeg ? `<span class="cbadge">${r.riesgoSeg}</span>` : ""}
+      </div>
+    </div>
+
+    <div class="rbox">
+      <div class="rbox-t">Datos adicionales</div>
+      <div class="irow3">
+        <div class="iitem"><label>Área</label><value>${fv(r.area)}</value></div>
+        <div class="iitem"><label>Email / Tel</label><value>${fv(r.email||r.telefono)}</value></div>
+        <div class="iitem"><label>Código / Lote</label><value class="mono">${fv(r.codProducto)} · ${fv(r.lote)}</value></div>
+        <div class="iitem"><label>Institución</label><value>${fv(r.institucion)}</value></div>
+        <div class="iitem"><label>Técnica respetada</label><value>${fv(r.tecnica)}${r.tecnicaMotivo?" — "+r.tecnicaMotivo:""}</value></div>
+      </div>
+    </div>
+
+    <div class="rbox">
+      <div class="rbox-t">Descripción del reclamo</div>
+      <div class="desc-text">${fv(r.descripcion)}</div>
+    </div>
+
+    ${r.fotos&&r.fotos.length ? `<div class="rbox"><div class="rbox-t">Foto(s) del reclamo</div><div style="display:flex;gap:8px;flex-wrap:wrap;">${r.fotos.map(f=>`<img src="${f}" style="max-width:160px;max-height:130px;object-fit:contain;border:1px solid #D0D4D9;border-radius:3px;">`).join("")}</div></div>` : ""}
+
+    <div class="rbox">
+      <div class="rbox-t">Investigación</div>
+      <div class="irow" style="margin-bottom:${hip.length||(r.investigar==='Si'&&porques.some(Boolean))?'10px':'0'};">
+        <div class="iitem"><label>¿Se investiga?</label><value>${fv(r.investigar)}</value></div>
+        <div class="iitem"><label>Motivo (si no se investiga)</label><value>${fv(r.motivoNoInvestiga)}</value></div>
+      </div>
+      ${hip.length?`<table><thead><tr><th>Teoría</th><th>Acción</th><th>Resultado</th></tr></thead><tbody>${hipFilas}</tbody></table>`:""}
+      ${r.investigar==="Si"?`<table style="margin-top:8px;"><thead><tr><th style="width:28px;">#</th><th>Análisis 5 Por Qués</th></tr></thead><tbody>${pqFilas}</tbody></table>`:""}
+    </div>
+
+    ${r.causaRaiz ? `<div class="cbox"><div class="cbox-t">✓ Causa Raíz Identificada</div><div class="cbox-v">${fv(r.causaRaiz)}</div></div>` : ""}
+
+    <div class="rbox">
+      <div class="rbox-t">Acciones y seguimiento</div>
+      <table><thead><tr><th>Tipo</th><th>Qué se hizo</th><th>Resultado</th><th>Responsable</th><th style="width:50px;text-align:center;">Hecho</th></tr></thead><tbody>${accFilas}</tbody></table>
+    </div>
+
+    <div class="rbox">
+      <div class="rbox-t">Cierre</div>
+      <div class="irow" style="margin-bottom:10px;">
+        <div class="iitem"><label>Quien resuelve</label><value>${fv(r.cierreResponsable)}</value></div>
+        <div class="iitem"><label>Fecha de cierre</label><value class="mono">${fmtFecha(r.cierreFecha)||"—"}</value></div>
+      </div>
+      <div class="irow" style="margin-bottom:${r.notas?'10px':'0'};">
+        <div class="iitem"><label>Fecha informe al reclamante</label><value class="mono">${fmtFecha(r.fechaInformeReclamante)||"—"}</value></div>
+        <div class="iitem"><label>Cómo se informó</label><value>${fv(r.comoInformo)}</value></div>
+      </div>
+      ${r.notas ? `<div class="iitem"><label>Notas internas</label></div><div class="desc-text">${fv(r.notas)}</div>` : ""}
+    </div>
+
+    ${fotosInvArray(r).length ? `<div class="rbox"><div class="rbox-t">Foto(s) de evidencia</div><div style="display:flex;gap:8px;flex-wrap:wrap;">${fotosInvArray(r).map(f=>`<img src="${f}" style="max-width:160px;max-height:130px;object-fit:contain;border:1px solid #D0D4D9;border-radius:3px;">`).join("")}</div></div>` : ""}
+
+    <div class="firma">
+      <div class="firma-b">Responsable de Calidad</div>
+      <div class="firma-b">Fecha</div>
+    </div>
   </body></html>`;
   buildPrintFrame(html);
 }
 
 function pdfTodo(id) { pdfCompleto(id); }
+
+/* ── PDF RESPUESTA INTERNA — informe completo de la investigación para uso interno ── */
+function pdfRespuestaInterna(id) {
+  const r = datos[id]; if (!r) return;
+  const acciones = Array.isArray(r.acciones) ? r.acciones.filter(a=>a.tipo||a.queSehizo) : [];
+  const accFilas = acciones.map(a=>`<tr><td>${fv(normTipoAcc(a.tipo))}</td><td>${fv(a.queSehizo)}</td><td>${fv(a.responsable)}</td><td class="mono">${fmtFecha(a.fechaEstimada)||"—"}</td><td>${fv(a.resultado)}</td><td style="text-align:center;">${a.hecho?'✓':''}</td></tr>`).join("")
+    || `<tr><td colspan="6" style="color:#8A949E;text-align:center;">Sin acciones registradas</td></tr>`;
+  const porques = Array.isArray(r.porques) ? r.porques : [];
+  const pqFilas = [0,1,2,3,4].map(i=>`<tr><td style="text-align:center;font-family:'IBM Plex Mono','Courier New',monospace;font-weight:600;color:#0E6B8A;">${i+1}</td><td>${fv(porques[i])}</td></tr>`).join("");
+  const hip = Array.isArray(r.hipotesis)&&r.hipotesis.length ? r.hipotesis : [];
+  const hipFilas = hip.map(h=>`<tr><td>${fv(h.teoria)}</td><td>${fv(h.accion)}</td><td>${fv(h.responsable)}</td><td class="mono">${fmtFecha(h.fechaEstimada)||"—"}</td><td>${fv(h.resultado)}</td></tr>`).join("")
+    || `<tr><td colspan="5" style="color:#8A949E;text-align:center;">Sin hipótesis registradas</td></tr>`;
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">${estilosBase()}${estilosResumen()}</head><body>
+    <div class="cbar"></div>
+    <div class="chead">
+      <div class="cid">${fv(r.id)}</div>
+      <div class="csub">Respuesta Interna — Informe de Investigación · Sistema de Gestión de Calidad — Biotrom · REG-007</div>
+      <div class="cmeta">
+        <div class="cmeta-item"><label>Reclamante</label><value>${fv(r.reclamante)}</value></div>
+        <div class="cmeta-item"><label>Producto / Instrumental</label><value>${fv(r.producto)}</value></div>
+        <div class="cmeta-item"><label>Sistema</label><value>${fv(r.sistema)}</value></div>
+        <div class="cmeta-item"><label>Fecha reclamo</label><value>${fmtFecha(r.fechaReclamo)}</value></div>
+        <div class="cmeta-item"><label>Paciente</label><value>${fv(r.paciente)}</value></div>
+        <div class="cmeta-item"><label>Cirujano</label><value>${fv(r.cirujano)}</value></div>
+        <div class="cmeta-item"><label>Fecha operación</label><value>${fmtFecha(r.fechaOp)}</value></div>
+      </div>
+      <div class="cmeta-badges">
+        ${r.estado ? `<span class="cbadge">${r.estado}</span>` : ""}
+        ${r.nivel ? `<span class="cbadge">${r.nivel}</span>` : ""}
+        ${r.riesgoSeg ? `<span class="cbadge">${r.riesgoSeg}</span>` : ""}
+      </div>
+    </div>
+
+    <div class="rbox">
+      <div class="rbox-t">Datos adicionales</div>
+      <div class="irow3">
+        <div class="iitem"><label>Área</label><value>${fv(r.area)}</value></div>
+        <div class="iitem"><label>Email / Tel</label><value>${fv(r.email||r.telefono)}</value></div>
+        <div class="iitem"><label>Código / Lote</label><value class="mono">${fv(r.codProducto)} · ${fv(r.lote)}</value></div>
+        <div class="iitem"><label>Institución</label><value>${fv(r.institucion)}</value></div>
+        <div class="iitem"><label>Técnica respetada</label><value>${fv(r.tecnica)}${r.tecnicaMotivo?" — "+r.tecnicaMotivo:""}</value></div>
+      </div>
+    </div>
+
+    <div class="rbox">
+      <div class="rbox-t">Descripción del reclamo</div>
+      <div class="desc-text">${fv(r.descripcion)}</div>
+    </div>
+
+    ${r.fotos&&r.fotos.length ? `<div class="rbox"><div class="rbox-t">Foto(s) del reclamo</div><div style="display:flex;gap:8px;flex-wrap:wrap;">${r.fotos.map(f=>`<img src="${f}" style="max-width:160px;max-height:130px;object-fit:contain;border:1px solid #D0D4D9;border-radius:3px;">`).join("")}</div></div>` : ""}
+
+    <div class="rbox">
+      <div class="rbox-t">Decisión de investigación</div>
+      <div class="irow">
+        <div class="iitem"><label>¿Se investiga?</label><value>${fv(r.investigar)}</value></div>
+        <div class="iitem"><label>Motivo (si no se investiga)</label><value>${fv(r.motivoNoInvestiga)}</value></div>
+      </div>
+    </div>
+
+    <div class="rbox">
+      <div class="rbox-t">Hipótesis iniciales</div>
+      <table><thead><tr><th>Teoría / Hipótesis</th><th>Acción a tomar</th><th>Responsable</th><th>Fecha</th><th>Resultado</th></tr></thead><tbody>${hipFilas}</tbody></table>
+    </div>
+
+    ${r.investigar==="Si"?`<div class="rbox"><div class="rbox-t">Análisis 5 Por Qués</div><table><thead><tr><th style="width:28px;">#</th><th>Por qué</th></tr></thead><tbody>${pqFilas}</tbody></table></div>`:""}
+
+    ${r.causaRaiz?`<div class="cbox"><div class="cbox-t">✓ Causa Raíz Identificada</div><div class="cbox-v">${fv(r.causaRaiz)}</div></div>`:""}
+
+    <div class="rbox">
+      <div class="rbox-t">Acciones y seguimiento</div>
+      <table><thead><tr><th>Tipo</th><th>Qué se hizo</th><th>Responsable</th><th>Fecha</th><th>Resultado</th><th style="width:50px;text-align:center;">Hecho</th></tr></thead><tbody>${accFilas}</tbody></table>
+    </div>
+
+    <div class="rbox">
+      <div class="rbox-t">Cierre</div>
+      <div class="irow" style="margin-bottom:10px;">
+        <div class="iitem"><label>Quien resuelve</label><value>${fv(r.cierreResponsable)}</value></div>
+        <div class="iitem"><label>Fecha de cierre</label><value class="mono">${fmtFecha(r.cierreFecha)||"—"}</value></div>
+      </div>
+      <div class="irow" style="margin-bottom:${r.notas?'10px':'0'};">
+        <div class="iitem"><label>Fecha informe al reclamante</label><value class="mono">${fmtFecha(r.fechaInformeReclamante)||"—"}</value></div>
+        <div class="iitem"><label>Cómo se informó</label><value>${fv(r.comoInformo)}</value></div>
+      </div>
+      ${r.notas ? `<div class="iitem"><label>Notas internas</label></div><div class="desc-text">${fv(r.notas)}</div>` : ""}
+    </div>
+
+    ${fotosInvArray(r).length ? `<div class="rbox"><div class="rbox-t">Foto(s) de evidencia</div><div style="display:flex;gap:8px;flex-wrap:wrap;">${fotosInvArray(r).map(f=>`<img src="${f}" style="max-width:160px;max-height:130px;object-fit:contain;border:1px solid #D0D4D9;border-radius:3px;">`).join("")}</div></div>` : ""}
+
+    <div class="firma">
+      <div class="firma-b">Responsable de Calidad</div>
+      <div class="firma-b">Director Técnico</div>
+    </div>
+  </body></html>`;
+  buildPrintFrame(html);
+}
 
 /* ── PDF SUGERENCIAS — iframe aislado, mismo patrón que reclamos ──── */
 function estilosBaseSM() {
